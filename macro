@@ -3,8 +3,36 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local GuiService = game:GetService("GuiService")
 
+local Players = game:GetService("Players")
+
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+
+while not player do
+	task.wait()
+	player = Players.LocalPlayer
+end
+
+local playerGui = player:WaitForChild("PlayerGui", 10)
+
+if not playerGui then
+	warn("PlayerGui no encontrado")
+	return
+end
+
+-- ============================================================
+-- CONTENEDOR DE LA UI (compatibilidad PC / móvil)
+-- Algunos executors de celular no inyectan bien la UI dentro de
+-- PlayerGui (se ve en PC pero no en el teléfono). gethui() (si el
+-- executor lo soporta) o CoreGui como respaldo son mucho más
+-- confiables en mobile. Si ninguno está disponible, se usa
+-- PlayerGui como antes.
+-- ============================================================
+
+local function resolveGuiParent()
+	return player:WaitForChild("PlayerGui")
+end
+
+local uiParent = resolveGuiParent()
 
 -- ============================================================
 -- AUTO UI BOOTSTRAP (ADICIONAL)
@@ -24,17 +52,20 @@ local function createUIObject(className, name, parent, properties)
 end
 
 local function ensureMacroUI()
-	local existing = playerGui:FindFirstChild("MacroUI")
+	local existing = uiParent:FindFirstChild("MacroUI")
 	if existing then
 		return existing
 	end
 
-	local gui = createUIObject("ScreenGui", "MacroUI", playerGui, {
+	local gui = createUIObject("ScreenGui", "MacroUI", uiParent, {
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-		DisplayOrder = 50,
+		DisplayOrder = 999,
+		Enabled = true,
 	})
+
+	gui.Parent = playerGui
 
 	local toggle = createUIObject("TextButton", "ToggleButton", gui, {
 		AnchorPoint = Vector2.new(0, 0.5),
@@ -69,11 +100,12 @@ local function ensureMacroUI()
 		Font = Enum.Font.GothamBlack,
 		TextSize = 21,
 		TextColor3 = Color3.fromRGB(240, 235, 250),
+		TextTruncate = Enum.TextTruncate.AtEnd,
 	})
 
 	local list = createUIObject("ScrollingFrame", "MacroListContainer", main, {
 		Position = UDim2.new(0, 14, 0, 58),
-		Size = UDim2.new(1, -28, 1, -126),
+		Size = UDim2.new(1, -28, 1, -166),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		ScrollBarThickness = 4,
@@ -83,14 +115,27 @@ local function ensureMacroUI()
 	})
 
 	local listLayout = createUIObject("UIListLayout", "Layout", list, {
-		Padding = UDim.new(0, 8),
+		Padding = UDim.new(0, 10),
 		SortOrder = Enum.SortOrder.LayoutOrder,
+	})
+
+	local hideQuickButton = createUIObject("TextButton", "HideQuickButton", main, {
+		Position = UDim2.new(0, 14, 1, -102),
+		Size = UDim2.new(1, -28, 0, 34),
+		Text = "Hide Quick Buttons",
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(27, 24, 34),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Selectable = true,
 	})
 
 	local newButton = createUIObject("TextButton", "NewMacroButton", main, {
 		Position = UDim2.new(0, 14, 1, -56),
 		Size = UDim2.new(0, 150, 0, 40),
-		Text = "+ NEW MACRO",
+		Text = "+ CREATE NEW MACRO",
 		Font = Enum.Font.GothamBlack,
 		TextSize = 14,
 		TextColor3 = Color3.new(1, 1, 1),
@@ -172,6 +217,121 @@ local function ensureMacroUI()
 		ZIndex = 30,
 	})
 
+	-- ========================================================
+	-- PANEL INDEPENDIENTE: "Editing: [macro]"
+	-- Ventana separada (hermana de MainFrame, no hija) para que
+	-- se pueda mover y ver junto al panel principal, igual que
+	-- en la referencia.
+	-- ========================================================
+
+	local editPanel = createUIObject("Frame", "EditPanel", gui, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(0.5, -320, 0.5, 0),
+		Size = UDim2.new(0, 330, 0, 460),
+		BackgroundColor3 = Color3.fromRGB(14, 13, 18),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 40,
+	})
+
+	local editTitleBar = createUIObject("Frame", "TitleBar", editPanel, {
+		Size = UDim2.new(1, 0, 0, 44),
+		BackgroundTransparency = 1,
+		Active = true,
+		ZIndex = 41,
+	})
+
+	createUIObject("TextLabel", "EditPanelTitle", editTitleBar, {
+		Position = UDim2.new(0, 16, 0, 0),
+		Size = UDim2.new(1, -60, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "Editing: Macro",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBlack,
+		TextSize = 17,
+		TextColor3 = Color3.fromRGB(240, 235, 250),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = 42,
+	})
+
+	createUIObject("TextButton", "EditPanelClose", editTitleBar, {
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -12, 0.5, 0),
+		Size = UDim2.new(0, 26, 0, 26),
+		Text = "✕",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(230, 55, 95),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		ZIndex = 42,
+	})
+
+	createUIObject("ScrollingFrame", "EditStepsList", editPanel, {
+		Position = UDim2.new(0, 12, 0, 52),
+		Size = UDim2.new(1, -24, 1, -112),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		ZIndex = 41,
+	})
+
+	createUIObject("TextLabel", "EditPanelEmptyLabel", editPanel, {
+		Position = UDim2.new(0, 16, 0, 60),
+		Size = UDim2.new(1, -32, 0, 24),
+		BackgroundTransparency = 1,
+		Text = "No steps yet — record or add one below.",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBold,
+		TextSize = 13,
+		TextColor3 = Color3.fromRGB(150, 155, 178),
+		Visible = false,
+		ZIndex = 41,
+	})
+
+	local addStepBar = createUIObject("Frame", "AddStepBar", editPanel, {
+		Position = UDim2.new(0, 12, 1, -100),
+		Size = UDim2.new(1, -24, 0, 26),
+		BackgroundTransparency = 1,
+		ZIndex = 41,
+	})
+
+	local addStepLayout = Instance.new("UIListLayout")
+	addStepLayout.FillDirection = Enum.FillDirection.Horizontal
+	addStepLayout.Padding = UDim.new(0, 6)
+	addStepLayout.Parent = addStepBar
+
+	for _, stepType in ipairs({"Slot", "Wait", "Click"}) do
+		createUIObject("TextButton", "Add" .. stepType, addStepBar, {
+			Size = UDim2.new(0, 60, 1, 0),
+			Text = stepType,
+			Font = Enum.Font.GothamBold,
+			TextSize = 12,
+			TextColor3 = Color3.new(1, 1, 1),
+			BackgroundColor3 = Color3.fromRGB(27, 24, 34),
+			BorderSizePixel = 0,
+			AutoButtonColor = false,
+			ZIndex = 41,
+		})
+	end
+
+	createUIObject("TextButton", "EditSaveCloseButton", editPanel, {
+		Position = UDim2.new(0, 12, 1, -56),
+		Size = UDim2.new(1, -24, 0, 40),
+		Text = "SAVE & CLOSE",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(70, 220, 135),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		ZIndex = 41,
+	})
+
 	return gui
 end
 
@@ -179,7 +339,7 @@ end
 local _autoCreatedMacroUI = ensureMacroUI()
 
 
-local MacroUI = playerGui:WaitForChild("MacroUI")
+local MacroUI = uiParent:WaitForChild("MacroUI")
 local ToggleButton = MacroUI:WaitForChild("ToggleButton")
 local MainFrame = MacroUI:WaitForChild("MainFrame")
 local MacroListContainer = MainFrame:WaitForChild("MacroListContainer")
@@ -189,6 +349,18 @@ local NameInput = NewMacroPopup:WaitForChild("NameInput")
 local ConfirmButton = NewMacroPopup:WaitForChild("ConfirmButton")
 local QuickAccessContainer = MacroUI:WaitForChild("QuickAccessContainer")
 local SaveAllButton = MainFrame:WaitForChild("SaveAllButton")
+local HideQuickButton = MainFrame:WaitForChild("HideQuickButton")
+local EditPanel = MacroUI:WaitForChild("EditPanel")
+local EditPanelTitleBar = EditPanel:WaitForChild("TitleBar")
+local EditPanelTitle = EditPanelTitleBar:WaitForChild("EditPanelTitle")
+local EditPanelClose = EditPanelTitleBar:WaitForChild("EditPanelClose")
+local EditStepsList = EditPanel:WaitForChild("EditStepsList")
+local EditPanelEmptyLabel = EditPanel:WaitForChild("EditPanelEmptyLabel")
+local AddStepBar = EditPanel:WaitForChild("AddStepBar")
+local AddSlotButton = AddStepBar:WaitForChild("AddSlot")
+local AddWaitButton = AddStepBar:WaitForChild("AddWait")
+local AddClickButton = AddStepBar:WaitForChild("AddClick")
+local EditSaveCloseButton = EditPanel:WaitForChild("EditSaveCloseButton")
 -- Nota: esta versión NO tiene guardado persistente. Las macros viven
 -- solo en memoria durante la sesión y se pierden al cerrar el juego.
 -- No requiere MacroSaveService ni la carpeta Remotes.
@@ -203,7 +375,7 @@ local SaveAllButton = MainFrame:WaitForChild("SaveAllButton")
 
 -- ----- MacroData -----
 local MacroData = {}
-function MacroData.new(name: string)
+function MacroData.new(name)
 	return {
 		name = name,
 		activationBind = nil,
@@ -223,7 +395,7 @@ function Recorder.new()
 	return self
 end
 
-function Recorder:IsRecording(): boolean
+function Recorder:IsRecording()
 	return self._recording
 end
 
@@ -255,10 +427,10 @@ end
 
 -- ----- ActionRegistry -----
 local ActionRegistry = {}
-local registeredActions: {[string]: (player: Player, fromInput: boolean?) -> ()} = {}
+local registeredActions = {}
 local activeRecorder = nil
 
-function ActionRegistry.Register(name: string, callback: (player: Player, fromInput: boolean?) -> ())
+function ActionRegistry.Register(name, callback)
 	if registeredActions[name] then
 		warn("[ActionRegistry] La acción '" .. name .. "' ya estaba registrada, se sobreescribe.")
 	end
@@ -396,6 +568,10 @@ end
 local manager = MacroManager.new()
 local macroPlayerInstance = MacroPlayer.new()
 
+-- "Wait" es un paso sin acción real: solo sirve para insertar una
+-- pausa manualmente desde el panel de edición (botón "Wait").
+ActionRegistry.Register("Wait", function() end)
+
 local sharedRecorder = Recorder.new()
 ActionRegistry.SetActiveRecorder(sharedRecorder)
 
@@ -408,14 +584,16 @@ local isMobile = UserInputService.TouchEnabled and not UserInputService.Keyboard
 -- TEMA VISUAL: Tryhard Morado/Negro
 -- ============================================================
 local Theme = {
-	Background = Color3.fromRGB(14, 13, 18),
-	Panel = Color3.fromRGB(20, 18, 26),
-	RowAlt = Color3.fromRGB(27, 24, 34),
-	Accent = Color3.fromRGB(175, 60, 255),
-	AccentDark = Color3.fromRGB(110, 25, 180),
-	Text = Color3.fromRGB(240, 235, 250),
-	SubText = Color3.fromRGB(180, 170, 195),
-	Danger = Color3.fromRGB(230, 55, 95),
+	Background = Color3.fromRGB(10, 11, 17),
+	Panel = Color3.fromRGB(16, 17, 25),
+	RowAlt = Color3.fromRGB(21, 23, 33),
+	Accent = Color3.fromRGB(168, 85, 247),     -- morado (RUN)
+	AccentDark = Color3.fromRGB(95, 40, 165),
+	Cyan = Color3.fromRGB(80, 225, 255),        -- brillo del borde exterior
+	Success = Color3.fromRGB(70, 220, 135),     -- verde (BUTTON / CREATE)
+	Text = Color3.fromRGB(240, 240, 250),
+	SubText = Color3.fromRGB(150, 155, 178),
+	Danger = Color3.fromRGB(235, 70, 100),
 	Font = Enum.Font.GothamBlack,
 	FontRegular = Enum.Font.GothamBold,
 }
@@ -436,37 +614,76 @@ local function applyStroke(inst, color, thickness, transparency)
 	return s
 end
 
+-- Borde exterior con brillo animado (cian -> morado -> cian), como el
+-- contorno neón de la referencia.
+local function applyGlowStroke(inst, thickness)
+	local s = Instance.new("UIStroke")
+	s.Thickness = thickness or 2
+	s.Parent = inst
+
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.Cyan),
+		ColorSequenceKeypoint.new(0.5, Theme.Accent),
+		ColorSequenceKeypoint.new(1, Theme.Cyan),
+	})
+	gradient.Parent = s
+
+	task.spawn(function()
+		while inst.Parent do
+			gradient.Rotation = (gradient.Rotation + 1) % 360
+			task.wait(0.03)
+		end
+	end)
+
+	return s
+end
+
+local function buttonVariantColors(variant)
+	if variant == "primary" then
+		return Theme.Accent, Color3.fromRGB(220, 180, 255)
+	elseif variant == "success" then
+		return Theme.Success, Color3.fromRGB(190, 255, 215)
+	elseif variant == "danger" then
+		return Color3.fromRGB(45, 22, 30), Theme.Danger
+	end
+	return Theme.RowAlt, Theme.Accent
+end
+
+local function setButtonVariant(btn, variant)
+	local baseColor, strokeColor = buttonVariantColors(variant)
+	btn.BackgroundColor3 = baseColor
+	btn:SetAttribute("BaseColor", baseColor)
+	local stroke = btn:FindFirstChildOfClass("UIStroke")
+	if stroke then
+		stroke.Color = strokeColor
+	end
+	return baseColor
+end
+
 local function styleButton(btn, variant)
 	variant = variant or "secondary"
-
-	local baseColor = Theme.RowAlt
-	local strokeColor = Theme.Accent
-	if variant == "primary" then
-		baseColor = Theme.Accent
-		strokeColor = Color3.fromRGB(220, 180, 255)
-	elseif variant == "danger" then
-		baseColor = Color3.fromRGB(45, 22, 30)
-		strokeColor = Theme.Danger
-	end
 
 	btn.Font = Theme.FontRegular
 	btn.TextColor3 = Theme.Text
 	btn.TextScaled = false
-	btn.TextSize = 15
-	btn.BackgroundColor3 = baseColor
+	btn.TextSize = 13
 	btn.AutoButtonColor = false
 	btn.BorderSizePixel = 0
-	applyCorner(btn, 6)
-	applyStroke(btn, strokeColor, 1.3)
+	applyCorner(btn, 7)
+	applyStroke(btn, Theme.Accent, 1.3)
+
+	setButtonVariant(btn, variant)
 
 	local originalSize = btn.Size
-	local hoverColor = baseColor:Lerp(Color3.new(1, 1, 1), 0.12)
 
 	btn.MouseEnter:Connect(function()
+		local hoverColor = btn.BackgroundColor3:Lerp(Color3.new(1, 1, 1), 0.12)
 		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = hoverColor}):Play()
 	end)
 	btn.MouseLeave:Connect(function()
-		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = baseColor}):Play()
+		local restColor = btn:GetAttribute("BaseColor") or btn.BackgroundColor3
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = restColor}):Play()
 		TweenService:Create(btn, TweenInfo.new(0.1), {Size = originalSize}):Play()
 	end)
 	btn.MouseButton1Down:Connect(function()
@@ -482,13 +699,14 @@ end
 local function styleFrame(frame, bgColor)
 	frame.BackgroundColor3 = bgColor or Theme.Panel
 	frame.BorderSizePixel = 0
-	applyCorner(frame, 10)
+	applyCorner(frame, 12)
 end
 
 local function styleLabel(label, big)
 	label.Font = big and Theme.Font or Theme.FontRegular
 	label.TextColor3 = Theme.Text
 	label.TextSize = big and 18 or 14
+	label.TextTruncate = Enum.TextTruncate.AtEnd
 end
 
 local function styleTextBox(box)
@@ -498,6 +716,8 @@ local function styleTextBox(box)
 	box.BackgroundColor3 = Theme.RowAlt
 	box.BorderSizePixel = 0
 	box.TextSize = 14
+	box.TextTruncate = Enum.TextTruncate.AtEnd
+	box.ClearTextOnFocus = false
 	applyCorner(box, 6)
 	applyStroke(box, Theme.Accent, 1)
 end
@@ -506,16 +726,40 @@ end
 -- APLICAR TEMA A ELEMENTOS BASE
 -- ============================================================
 
+local refreshMobileMacroButtons -- se define más abajo; declarado aquí para poder usarse desde varios handlers anteriores.
+
 styleButton(ToggleButton, "primary")
+applyCorner(ToggleButton, 26)
 styleFrame(MainFrame, Theme.Background)
-applyStroke(MainFrame, Theme.Accent, 2)
+applyGlowStroke(MainFrame, 2)
 MainFrame.ClipsDescendants = true
 
 styleFrame(NewMacroPopup, Theme.Panel)
+applyStroke(NewMacroPopup, Theme.Accent, 1.5)
 styleTextBox(NameInput)
 styleButton(ConfirmButton, "primary")
-styleButton(NewMacroButton, "primary")
+styleButton(NewMacroButton, "success")
 styleButton(SaveAllButton, "secondary")
+styleButton(HideQuickButton, "secondary")
+
+local quickButtonsHidden = false
+HideQuickButton.MouseButton1Click:Connect(function()
+	quickButtonsHidden = not quickButtonsHidden
+	HideQuickButton.Text = quickButtonsHidden and "Show Quick Buttons" or "Hide Quick Buttons"
+	QuickAccessContainer.Visible = isMobile and not quickButtonsHidden
+	if refreshMobileMacroButtons then
+		refreshMobileMacroButtons()
+	end
+end)
+
+styleFrame(EditPanel, Theme.Background)
+applyGlowStroke(EditPanel, 2)
+EditPanel.ClipsDescendants = false
+styleButton(EditSaveCloseButton, "success")
+styleButton(AddSlotButton, "secondary")
+styleButton(AddWaitButton, "secondary")
+styleButton(AddClickButton, "secondary")
+applyCorner(EditPanelClose, 13)
 
 -- ============================================================
 -- ANIMACIÓN DE APERTURA/CIERRE DEL PANEL
@@ -546,7 +790,14 @@ local function togglePanel()
 		if panelOpen then
 			GuiService.SelectedObject = NewMacroButton
 		else
-			GuiService.SelectedObject = ToggleButton
+			-- IMPORTANTE: se deja en nil (no en ToggleButton) al cerrar.
+			-- Si dejamos algo seleccionado, Roblox intercepta el botón de
+			-- "confirmar" del mando (normalmente A) para "activar" ese
+			-- elemento de UI, y el input nunca llega limpio a nuestro
+			-- listener de activation binds (llega con gameProcessed=true).
+			-- Esto era exactamente lo que impedía reproducir una macro
+			-- después de asignarle el botón A/X del control.
+			GuiService.SelectedObject = nil
 		end
 	end
 end
@@ -566,7 +817,10 @@ local function focusGamepadSelection()
 	if panelOpen and MainFrame.Visible then
 		GuiService.SelectedObject = NewMacroButton
 	else
-		GuiService.SelectedObject = ToggleButton
+		-- Nada seleccionado mientras el panel está cerrado: así el mando
+		-- queda "libre" para que los binds de macros lleguen sin que la
+		-- UI se los coma primero. Ver nota en togglePanel().
+		GuiService.SelectedObject = nil
 	end
 end
 
@@ -574,10 +828,25 @@ UserInputService.GamepadConnected:Connect(focusGamepadSelection)
 focusGamepadSelection()
 
 -- ============================================================
+-- ABRIR EL PANEL CON MANDO SIN USAR GuiService.SelectedObject
+-- Como ya no dejamos nada seleccionado con el panel cerrado, el
+-- jugador con mando necesita otra forma de abrirlo (no puede "click"
+-- un botón que no está seleccionado). Se usa el botón Start/Menu del
+-- control, que casi ningún juego usa para otra cosa, así no compite
+-- con los botones que el jugador vaya a asignar a sus macros.
+-- ============================================================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.ButtonStart then
+		togglePanel()
+	end
+end)
+
+-- ============================================================
 -- BOTONES FLOTANTES DE EJECUCIÓN RÁPIDA (solo mobile)
 -- ============================================================
 
-QuickAccessContainer.Visible = isMobile
+QuickAccessContainer.Visible = isMobile and not quickButtonsHidden
 
 local function refreshQuickButton(macro)
 	if quickButtons[macro.name] then
@@ -585,7 +854,12 @@ local function refreshQuickButton(macro)
 		quickButtons[macro.name] = nil
 	end
 
-	if not macro.activationBind then return end
+	if not macro.activationBind and not macro.quickButtonEnabled then
+		if refreshMobileMacroButtons then
+			task.defer(refreshMobileMacroButtons)
+		end
+		return
+	end
 
 	local quickButton = Instance.new("TextButton")
 	quickButton.Size = UDim2.new(0, 64, 0, 64)
@@ -625,6 +899,10 @@ local function refreshQuickButton(macro)
 	end)
 
 	quickButtons[macro.name] = quickButton
+
+	if refreshMobileMacroButtons then
+		task.defer(refreshMobileMacroButtons)
+	end
 end
 
 -- ============================================================
@@ -804,8 +1082,8 @@ local function createMobileMacroButton(macroName, index)
 	mobileMacroButtons[macroName] = button
 end
 
-local function refreshMobileMacroButtons()
-	if not isMobile then
+function refreshMobileMacroButtons()
+	if not isMobile or quickButtonsHidden then
 		MobileFloatingLayer.Visible = false
 		return
 	end
@@ -815,7 +1093,10 @@ local function refreshMobileMacroButtons()
 	local names = {}
 	for _, row in ipairs(MacroListContainer:GetChildren()) do
 		if row:IsA("Frame") and row.Name ~= "" then
-			table.insert(names, row.Name)
+			local macro = manager:GetMacro(row.Name)
+			if macro and (macro.quickButtonEnabled or macro.activationBind) then
+				table.insert(names, row.Name)
+			end
 		end
 	end
 	table.sort(names)
@@ -859,17 +1140,50 @@ if not responsiveScale then
 	responsiveScale.Parent = MainFrame
 end
 
+local editPanelScale = EditPanel:FindFirstChild("EditPanelScale")
+if not editPanelScale then
+	editPanelScale = Instance.new("UIScale")
+	editPanelScale.Name = "EditPanelScale"
+	editPanelScale.Parent = EditPanel
+end
+
 local function updateResponsiveUI()
 	local camera = workspace.CurrentCamera
 	local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
 
 	if isMobile then
-		responsiveScale.Scale = math.clamp(math.min(viewport.X / 420, viewport.Y / 760), 0.72, 0.98)
+		local scale = math.clamp(math.min(viewport.X / 420, viewport.Y / 760), 0.72, 0.98)
+		responsiveScale.Scale = scale
 		MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+
+		-- En móvil no hay espacio para dos ventanas lado a lado:
+		-- el panel de edición se centra como un modal sobre el principal.
+		editPanelScale.Scale = scale
+		EditPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+		EditPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
 	elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
-		responsiveScale.Scale = math.clamp(math.min(viewport.X / 1000, viewport.Y / 700), 0.82, 1)
+		local scale = math.clamp(math.min(viewport.X / 1000, viewport.Y / 700), 0.82, 1)
+		responsiveScale.Scale = scale
+		editPanelScale.Scale = scale
+		EditPanel.AnchorPoint = Vector2.new(1, 0.5)
+		EditPanel.Position = UDim2.new(0.5, -322, 0.5, 0)
 	else
-		responsiveScale.Scale = math.clamp(math.min(viewport.X / 1100, viewport.Y / 760), 0.78, 1)
+		local scale = math.clamp(math.min(viewport.X / 1100, viewport.Y / 760), 0.78, 1)
+		responsiveScale.Scale = scale
+		editPanelScale.Scale = scale
+		EditPanel.AnchorPoint = Vector2.new(1, 0.5)
+		EditPanel.Position = UDim2.new(0.5, -322, 0.5, 0)
+	end
+
+	-- Si el EditPanel quedara parcialmente fuera de pantalla (pantallas
+	-- angostas de escritorio/tablet), lo recentramos como en móvil.
+	if not isMobile then
+		local panelWidth = EditPanel.AbsoluteSize.X > 0 and EditPanel.AbsoluteSize.X or 330
+		local mainLeftEdge = viewport.X / 2 - 310
+		if mainLeftEdge - panelWidth < 8 then
+			EditPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+			EditPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+		end
 	end
 end
 
@@ -881,55 +1195,469 @@ end
 -- La capa móvil se actualiza cuando ya existen filas de macros.
 task.defer(refreshMobileMacroButtons)
 
+-- ============================================================
+-- TRADUCCIÓN DE PASOS A ETIQUETAS/COLORES LEGIBLES
+-- ============================================================
+
+local function friendlyStepLabel(actionName)
+	if actionName == "Wait" then
+		return "Wait"
+	elseif actionName:sub(1, 9) == "EquipSlot" then
+		local num = actionName:match("EquipSlot(%d+)")
+		return "Slot " .. (num or "?")
+	elseif actionName:sub(1, 10) == "EquipTool:" then
+		return "Equip " .. actionName:sub(11)
+	elseif actionName == "ToolAttack" then
+		return "Fire"
+	end
+	return actionName
+end
+
+local function friendlyStepColor(actionName)
+	if actionName == "Wait" then
+		return Theme.SubText
+	elseif actionName == "ToolAttack" then
+		return Theme.Danger
+	elseif actionName:sub(1, 9) == "EquipSlot" then
+		return Theme.Accent
+	elseif actionName:sub(1, 10) == "EquipTool:" then
+		return Theme.Success
+	end
+	return Theme.Cyan
+end
+
+local function friendlyStepIcon(actionName)
+	if actionName == "Wait" then
+		return "⏱"
+	elseif actionName == "ToolAttack" then
+		return "F"
+	elseif actionName:sub(1, 9) == "EquipSlot" then
+		return actionName:match("EquipSlot(%d+)") or "S"
+	elseif actionName:sub(1, 10) == "EquipTool:" then
+		return "E"
+	end
+	return "•"
+end
+
+local function buildSequenceSummary(macro)
+	if #macro.sequence == 0 then
+		return "No steps yet — press EDIT"
+	end
+	local parts = {}
+	for i, step in ipairs(macro.sequence) do
+		if i > 1 and step.delay and step.delay > 0.01 then
+			table.insert(parts, string.format("%.2gs", step.delay))
+		end
+		table.insert(parts, friendlyStepLabel(step.action))
+	end
+	local text = table.concat(parts, " › ")
+	if #text > 64 then
+		text = text:sub(1, 61) .. "..."
+	end
+	return text
+end
+
+-- ============================================================
+-- PANEL INDEPENDIENTE "Editing: [macro]"
+-- Ventana aparte del panel principal: se abre con EDIT, muestra
+-- los pasos de esa macro, y se cierra con SAVE & CLOSE o la X.
+-- ============================================================
+
+local rowIndex = {} -- macro.name -> subtitleLabel de su tarjeta
+local currentEditingMacro = nil
+
+local function refreshRowSummary(macro)
+	local label = rowIndex[macro.name]
+	if label then
+		label.Text = buildSequenceSummary(macro)
+	end
+end
+
+local function refreshEditPanelSteps()
+	for _, child in ipairs(EditStepsList:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+
+	if not currentEditingMacro then return end
+	local macro = currentEditingMacro
+
+	EditPanelEmptyLabel.Visible = (#macro.sequence == 0)
+
+	for i, step in ipairs(macro.sequence) do
+		local stepRow = Instance.new("Frame")
+		stepRow.Size = UDim2.new(1, 0, 0, 36)
+		stepRow.BackgroundColor3 = Theme.RowAlt
+		stepRow.BorderSizePixel = 0
+		stepRow.LayoutOrder = i
+		applyCorner(stepRow, 6)
+
+		local handle = Instance.new("TextLabel")
+		handle.Size = UDim2.new(0, 18, 1, 0)
+		handle.BackgroundTransparency = 1
+		handle.Text = "≡"
+		handle.TextColor3 = Theme.SubText
+		handle.Font = Theme.FontRegular
+		handle.TextSize = 15
+		handle.Parent = stepRow
+
+		local icon = Instance.new("Frame")
+		icon.Size = UDim2.new(0, 26, 0, 26)
+		icon.Position = UDim2.new(0, 20, 0.5, -13)
+		icon.BackgroundColor3 = friendlyStepColor(step.action)
+		icon.BorderSizePixel = 0
+		applyCorner(icon, 6)
+		icon.Parent = stepRow
+
+		local iconLabel = Instance.new("TextLabel")
+		iconLabel.Size = UDim2.new(1, 0, 1, 0)
+		iconLabel.BackgroundTransparency = 1
+		iconLabel.Text = friendlyStepIcon(step.action)
+		iconLabel.Font = Theme.Font
+		iconLabel.TextSize = 12
+		iconLabel.TextColor3 = Color3.new(1, 1, 1)
+		iconLabel.Parent = icon
+
+		local stepLabel = Instance.new("TextLabel")
+		stepLabel.Size = UDim2.new(1, -168, 1, 0)
+		stepLabel.Position = UDim2.new(0, 54, 0, 0)
+		stepLabel.BackgroundTransparency = 1
+		stepLabel.Text = friendlyStepLabel(step.action)
+		stepLabel.TextXAlignment = Enum.TextXAlignment.Left
+		styleLabel(stepLabel, false)
+		stepLabel.Parent = stepRow
+
+		local delayBox = Instance.new("TextBox")
+		delayBox.Size = UDim2.new(0, 52, 0, 24)
+		delayBox.Position = UDim2.new(1, -98, 0.5, -12)
+		delayBox.Text = string.format("%.2f", step.delay)
+		delayBox.TextSize = 12
+		delayBox.Parent = stepRow
+		styleTextBox(delayBox)
+
+		delayBox.FocusLost:Connect(function()
+			local newValue = tonumber(delayBox.Text)
+			if newValue and newValue >= 0 then
+				step.delay = newValue
+			end
+			delayBox.Text = string.format("%.2f", step.delay)
+			refreshRowSummary(macro)
+		end)
+
+		local moveUpButton = Instance.new("TextButton")
+		moveUpButton.Size = UDim2.new(0, 22, 0, 22)
+		moveUpButton.Position = UDim2.new(1, -40, 0.5, -11)
+		moveUpButton.Text = "▲"
+		moveUpButton.Font = Theme.FontRegular
+		moveUpButton.TextSize = 11
+		moveUpButton.TextColor3 = Color3.new(1, 1, 1)
+		moveUpButton.BackgroundColor3 = Theme.RowAlt
+		moveUpButton.BorderSizePixel = 0
+		moveUpButton.AutoButtonColor = false
+		applyCorner(moveUpButton, 5)
+		applyStroke(moveUpButton, Theme.Accent, 1)
+		moveUpButton.Parent = stepRow
+
+		moveUpButton.MouseButton1Click:Connect(function()
+			if i <= 1 then return end
+			macro.sequence[i], macro.sequence[i - 1] = macro.sequence[i - 1], macro.sequence[i]
+			refreshRowSummary(macro)
+			refreshEditPanelSteps()
+		end)
+
+		local deleteStepButton = Instance.new("TextButton")
+		deleteStepButton.Size = UDim2.new(0, 22, 0, 22)
+		deleteStepButton.Position = UDim2.new(1, -14, 0.5, -11)
+		deleteStepButton.Text = "✕"
+		deleteStepButton.Font = Theme.FontRegular
+		deleteStepButton.TextSize = 11
+		deleteStepButton.TextColor3 = Color3.new(1, 1, 1)
+		deleteStepButton.BackgroundColor3 = Color3.fromRGB(45, 22, 30)
+		deleteStepButton.BorderSizePixel = 0
+		deleteStepButton.AutoButtonColor = false
+		applyCorner(deleteStepButton, 5)
+		applyStroke(deleteStepButton, Theme.Danger, 1)
+		deleteStepButton.Parent = stepRow
+
+		deleteStepButton.MouseButton1Click:Connect(function()
+			table.remove(macro.sequence, i)
+			refreshRowSummary(macro)
+			refreshEditPanelSteps()
+		end)
+
+		stepRow.Parent = EditStepsList
+	end
+end
+
+local editStepsLayout = Instance.new("UIListLayout")
+editStepsLayout.Padding = UDim.new(0, 6)
+editStepsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+editStepsLayout.Parent = EditStepsList
+
+local function openEditPanel(macro)
+	currentEditingMacro = macro
+	EditPanelTitle.Text = "Editing: " .. macro.name
+	EditPanel.Visible = true
+	refreshEditPanelSteps()
+end
+
+local function closeEditPanel()
+	EditPanel.Visible = false
+	currentEditingMacro = nil
+end
+
+EditPanelClose.MouseButton1Click:Connect(closeEditPanel)
+EditSaveCloseButton.MouseButton1Click:Connect(closeEditPanel)
+
+AddSlotButton.MouseButton1Click:Connect(function()
+	if not currentEditingMacro then return end
+	table.insert(currentEditingMacro.sequence, {action = "EquipSlot1", delay = 0.1})
+	refreshRowSummary(currentEditingMacro)
+	refreshEditPanelSteps()
+end)
+
+AddClickButton.MouseButton1Click:Connect(function()
+	if not currentEditingMacro then return end
+	table.insert(currentEditingMacro.sequence, {action = "ToolAttack", delay = 0.1})
+	refreshRowSummary(currentEditingMacro)
+	refreshEditPanelSteps()
+end)
+
+AddWaitButton.MouseButton1Click:Connect(function()
+	if not currentEditingMacro then return end
+	table.insert(currentEditingMacro.sequence, {action = "Wait", delay = 0.2})
+	refreshRowSummary(currentEditingMacro)
+	refreshEditPanelSteps()
+end)
+
+-- Permite arrastrar el panel de edición desde su barra de título,
+-- igual que en la referencia (dos ventanas independientes que se
+-- pueden reacomodar).
+do
+	local dragging = false
+	local dragStart, startPos
+
+	EditPanelTitleBar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = EditPanel.Position
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			local delta = input.Position - dragStart
+			EditPanel.Position = UDim2.new(
+				startPos.X.Scale, startPos.X.Offset + delta.X,
+				startPos.Y.Scale, startPos.Y.Offset + delta.Y
+			)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+-- ============================================================
+-- TARJETA DE MACRO (estilo Void Macro Editor)
+-- ============================================================
+
+local ROW_BASE_HEIGHT = 150
+
 local function createRow(macro)
+	if macro.quickButtonEnabled == nil then
+		macro.quickButtonEnabled = false
+	end
+
 	local row = Instance.new("Frame")
 	row.Name = macro.name
-	row.Size = UDim2.new(1, 0, 0, 80)
+	row.Size = UDim2.new(1, 0, 0, ROW_BASE_HEIGHT)
+	row.ClipsDescendants = true
 	styleFrame(row, Theme.RowAlt)
+	applyStroke(row, Theme.AccentDark, 1, 0.4)
 
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(0.35, 0, 0, 24)
-	nameLabel.Position = UDim2.new(0, 12, 0, 43)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = macro.name
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	styleLabel(nameLabel, true)
-	nameLabel.Parent = row
+	-- Título
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -24, 0, 22)
+	titleLabel.Position = UDim2.new(0, 12, 0, 10)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = macro.name
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Font = Theme.Font
+	titleLabel.TextSize = 17
+	titleLabel.TextColor3 = Theme.Accent
+	titleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	titleLabel.Parent = row
 
-	local recordButton = Instance.new("TextButton")
-	recordButton.Size = UDim2.new(0, 62, 0, 30)
-	recordButton.Position = UDim2.new(0.35, 10, 0, 40)
-	recordButton.Text = "● Record"
-	recordButton.Parent = row
-	styleButton(recordButton, "danger")
+	-- Subtítulo: resumen de la secuencia (Slot 1 › Fire › 0.05s › Slot 2 › Fire)
+	local subtitleLabel = Instance.new("TextLabel")
+	subtitleLabel.Size = UDim2.new(1, -24, 0, 16)
+	subtitleLabel.Position = UDim2.new(0, 12, 0, 32)
+	subtitleLabel.BackgroundTransparency = 1
+	subtitleLabel.Text = buildSequenceSummary(macro)
+	subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	subtitleLabel.Font = Theme.FontRegular
+	subtitleLabel.TextSize = 12
+	subtitleLabel.TextColor3 = Theme.SubText
+	subtitleLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	subtitleLabel.Parent = row
+
+	-- Fila de botones: EDIT / RUN / REC / BUTTON / DEL
+	local buttonRow = Instance.new("Frame")
+	buttonRow.Size = UDim2.new(1, -24, 0, 30)
+	buttonRow.Position = UDim2.new(0, 12, 0, 54)
+	buttonRow.BackgroundTransparency = 1
+	buttonRow.Parent = row
+
+	local buttonLayout = Instance.new("UIListLayout")
+	buttonLayout.FillDirection = Enum.FillDirection.Horizontal
+	buttonLayout.Padding = UDim.new(0, 8)
+	buttonLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	buttonLayout.Parent = buttonRow
+
+	local editButton = Instance.new("TextButton")
+	editButton.Size = UDim2.new(0, 60, 1, 0)
+	editButton.Text = "EDIT"
+	editButton.LayoutOrder = 1
+	editButton.Parent = buttonRow
+	styleButton(editButton, "secondary")
 
 	local playButton = Instance.new("TextButton")
-	playButton.Size = UDim2.new(0, 52, 0, 30)
-	playButton.Position = UDim2.new(0.6, 8, 0, 40)
-	playButton.Text = "▶ Play"
-	playButton.Parent = row
+	playButton.Size = UDim2.new(0, 60, 1, 0)
+	playButton.Text = "RUN"
+	playButton.LayoutOrder = 2
+	playButton.Parent = buttonRow
 	styleButton(playButton, "primary")
 
+	local recordButton = Instance.new("TextButton")
+	recordButton.Size = UDim2.new(0, 42, 1, 0)
+	recordButton.Text = "●"
+	recordButton.LayoutOrder = 3
+	recordButton.Parent = buttonRow
+	styleButton(recordButton, "danger")
+
+	local quickToggleButton = Instance.new("TextButton")
+	quickToggleButton.Size = UDim2.new(0, 76, 1, 0)
+	quickToggleButton.Text = "BUTTON"
+	quickToggleButton.LayoutOrder = 4
+	quickToggleButton.Parent = buttonRow
+	styleButton(quickToggleButton, macro.quickButtonEnabled and "success" or "secondary")
+
 	local deleteButton = Instance.new("TextButton")
-	deleteButton.Size = UDim2.new(0, 52, 0, 30)
-	deleteButton.Position = UDim2.new(0.8, 10, 0, 40)
-	deleteButton.Text = "Delete"
-	deleteButton.Parent = row
+	deleteButton.Size = UDim2.new(0, 50, 1, 0)
+	deleteButton.Text = "DEL"
+	deleteButton.LayoutOrder = 5
+	deleteButton.Parent = buttonRow
 	styleButton(deleteButton, "danger")
 
+	-- Renombrar (icono de lápiz + campo de texto)
+	local renameRow = Instance.new("Frame")
+	renameRow.Size = UDim2.new(1, -24, 0, 22)
+	renameRow.Position = UDim2.new(0, 12, 0, 90)
+	renameRow.BackgroundTransparency = 1
+	renameRow.Parent = row
+
+	local renameIcon = Instance.new("TextLabel")
+	renameIcon.Size = UDim2.new(0, 18, 1, 0)
+	renameIcon.BackgroundTransparency = 1
+	renameIcon.Text = "✎"
+	renameIcon.TextColor3 = Theme.SubText
+	renameIcon.Font = Theme.FontRegular
+	renameIcon.TextSize = 13
+	renameIcon.Parent = renameRow
+
+	local renameBox = Instance.new("TextBox")
+	renameBox.Size = UDim2.new(1, -22, 1, 0)
+	renameBox.Position = UDim2.new(0, 22, 0, 0)
+	renameBox.BackgroundTransparency = 1
+	renameBox.Text = ""
+	renameBox.ClearTextOnFocus = false
+	renameBox.PlaceholderText = "Rename " .. macro.name
+	renameBox.PlaceholderColor3 = Theme.SubText
+	renameBox.TextColor3 = Theme.Text
+	renameBox.Font = Theme.FontRegular
+	renameBox.TextSize = 12
+	renameBox.TextXAlignment = Enum.TextXAlignment.Left
+	renameBox.TextTruncate = Enum.TextTruncate.AtEnd
+	renameBox.Parent = renameRow
+
+	renameBox.FocusLost:Connect(function()
+		local newName = renameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+		renameBox.Text = ""
+		if newName == "" or newName == macro.name then
+			return
+		end
+		if manager:GetMacro(newName) then
+			warn("[MacroClient] Ya existe una macro llamada '" .. newName .. "'.")
+			return
+		end
+		manager._macros[newName] = macro
+		manager._macros[macro.name] = nil
+		if quickButtons[macro.name] then
+			quickButtons[macro.name]:Destroy()
+			quickButtons[macro.name] = nil
+		end
+		rowIndex[macro.name] = nil
+		macro.name = newName
+		row.Name = newName
+		titleLabel.Text = newName
+		renameBox.PlaceholderText = "Rename " .. newName
+		rowIndex[newName] = subtitleLabel
+		if currentEditingMacro == macro then
+			EditPanelTitle.Text = "Editing: " .. newName
+		end
+		refreshQuickButton(macro)
+	end)
+
+	-- Tecla asignada (Set Key / CLR)
+	local keyRow = Instance.new("Frame")
+	keyRow.Size = UDim2.new(1, -24, 0, 24)
+	keyRow.Position = UDim2.new(0, 12, 0, 118)
+	keyRow.BackgroundTransparency = 1
+	keyRow.Parent = row
+
+	local keyLabel = Instance.new("TextLabel")
+	keyLabel.Size = UDim2.new(1, -140, 1, 0)
+	keyLabel.BackgroundTransparency = 1
+	keyLabel.TextXAlignment = Enum.TextXAlignment.Left
+	keyLabel.Font = Theme.FontRegular
+	keyLabel.TextSize = 11
+	keyLabel.TextColor3 = Theme.SubText
+	keyLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	keyLabel.Text = macro.activationBind
+		and ("Bound to " .. macro.activationBind.Name)
+		or "No key set - runs from RUN or its bound key"
+	keyLabel.Parent = keyRow
+
 	local bindButton = Instance.new("TextButton")
-	bindButton.Size = UDim2.new(0, 90, 0, 30)
-	bindButton.Position = UDim2.new(0.6, 10, 0, 5)
-	bindButton.Text = "Bind: " .. (macro.activationBind and macro.activationBind.Name or "None")
-	bindButton.Parent = row
+	bindButton.Size = UDim2.new(0, 82, 1, 0)
+	bindButton.Position = UDim2.new(1, -136, 0, 0)
+	bindButton.Text = "Set Key"
+	bindButton.Parent = keyRow
 	styleButton(bindButton, "secondary")
+
+	local clearBindButton = Instance.new("TextButton")
+	clearBindButton.Size = UDim2.new(0, 46, 1, 0)
+	clearBindButton.Position = UDim2.new(1, -46, 0, 0)
+	clearBindButton.Text = "CLR"
+	clearBindButton.Parent = keyRow
+	styleButton(clearBindButton, "danger")
 
 	local waitingForBind = false
 
 	bindButton.MouseButton1Click:Connect(function()
 		if waitingForBind then return end
 		waitingForBind = true
-		bindButton.Text = "Waiting..."
+		bindButton.Text = "..."
 
 		local connection
 		connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -939,85 +1667,23 @@ local function createRow(macro)
 			end
 
 			manager:SetActivationBind(macro.name, input.KeyCode)
-			bindButton.Text = "Bind: " .. input.KeyCode.Name
+			keyLabel.Text = "Bound to " .. input.KeyCode.Name
+			bindButton.Text = "Set Key"
 			waitingForBind = false
 			connection:Disconnect()
 			refreshQuickButton(macro)
 		end)
 	end)
 
-	local editButton = Instance.new("TextButton")
-	editButton.Size = UDim2.new(0, 62, 0, 30)
-	editButton.Position = UDim2.new(0.35, 10, 0, 5)
-	editButton.Text = "Editar"
-	editButton.Parent = row
-	styleButton(editButton, "secondary")
+	clearBindButton.MouseButton1Click:Connect(function()
+		macro.activationBind = nil
+		keyLabel.Text = "No key set - runs from RUN or its bound key"
+		refreshQuickButton(macro)
+	end)
 
-	local stepsContainer = Instance.new("Frame")
-	stepsContainer.Name = "StepsContainer"
-	stepsContainer.Size = UDim2.new(1, 0, 0, 0)
-	stepsContainer.Position = UDim2.new(0, 0, 0, 80)
-	stepsContainer.BackgroundColor3 = Theme.Background
-	stepsContainer.BorderSizePixel = 0
-	stepsContainer.ClipsDescendants = true
-	stepsContainer.Visible = false
-	stepsContainer.Parent = row
-
-	local stepsLayout = Instance.new("UIListLayout")
-	stepsLayout.Parent = stepsContainer
-
-	local function refreshStepsUI()
-		for _, child in ipairs(stepsContainer:GetChildren()) do
-			if child:IsA("Frame") then
-				child:Destroy()
-			end
-		end
-
-		for i, step in ipairs(macro.sequence) do
-			local stepRow = Instance.new("Frame")
-			stepRow.Size = UDim2.new(1, 0, 0, 32)
-			stepRow.BackgroundTransparency = 1
-
-			local stepLabel = Instance.new("TextLabel")
-			stepLabel.Size = UDim2.new(0.55, 0, 1, 0)
-			stepLabel.Position = UDim2.new(0, 12, 0, 0)
-			stepLabel.BackgroundTransparency = 1
-			stepLabel.Text = i .. ". " .. (step.action:sub(1, 10) == "EquipTool:" and "Equip: " .. step.action:sub(11) or step.action)
-			stepLabel.TextXAlignment = Enum.TextXAlignment.Left
-			styleLabel(stepLabel, false)
-			stepLabel.TextColor3 = Theme.SubText
-			stepLabel.Parent = stepRow
-
-			local delayBox = Instance.new("TextBox")
-			delayBox.Size = UDim2.new(0, 60, 0, 26)
-			delayBox.Position = UDim2.new(0.6, 0, 0, 3)
-			delayBox.Text = string.format("%.2f", step.delay)
-			delayBox.Parent = stepRow
-			styleTextBox(delayBox)
-
-			delayBox.FocusLost:Connect(function()
-				local newValue = tonumber(delayBox.Text)
-				if newValue and newValue >= 0 then
-					step.delay = newValue
-					delayBox.Text = string.format("%.2f", newValue)
-				else
-					delayBox.Text = string.format("%.2f", step.delay)
-				end
-			end)
-
-			stepRow.Parent = stepsContainer
-		end
-
-		stepsContainer.Size = UDim2.new(1, 0, 0, #macro.sequence * 32)
-	end
-
+	-- EDIT abre el panel independiente "Editing: [macro]"
 	editButton.MouseButton1Click:Connect(function()
-		stepsContainer.Visible = not stepsContainer.Visible
-		local targetHeight = stepsContainer.Visible and (80 + (#macro.sequence * 32)) or 80
-		if stepsContainer.Visible then
-			refreshStepsUI()
-		end
-		TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+		openEditPanel(macro)
 	end)
 
 	recordButton.MouseButton1Click:Connect(function()
@@ -1025,11 +1691,15 @@ local function createRow(macro)
 			local result = sharedRecorder:Stop()
 			macro.sequence = result
 			currentlyRecordingMacro = nil
-			recordButton.Text = "● Record"
+			setButtonVariant(recordButton, "danger")
+			subtitleLabel.Text = buildSequenceSummary(macro)
+			if currentEditingMacro == macro then
+				refreshEditPanelSteps()
+			end
 		elseif currentlyRecordingMacro == nil then
 			sharedRecorder:Start()
 			currentlyRecordingMacro = macro.name
-			recordButton.Text = "■ Stop"
+			setButtonVariant(recordButton, "success")
 		end
 	end)
 
@@ -1041,15 +1711,26 @@ local function createRow(macro)
 		end)
 	end)
 
+	quickToggleButton.MouseButton1Click:Connect(function()
+		macro.quickButtonEnabled = not macro.quickButtonEnabled
+		setButtonVariant(quickToggleButton, macro.quickButtonEnabled and "success" or "secondary")
+		refreshQuickButton(macro)
+	end)
+
 	deleteButton.MouseButton1Click:Connect(function()
 		manager:DeleteMacro(macro.name)
 		if quickButtons[macro.name] then
 			quickButtons[macro.name]:Destroy()
 			quickButtons[macro.name] = nil
 		end
+		rowIndex[macro.name] = nil
+		if currentEditingMacro == macro then
+			closeEditPanel()
+		end
 		row:Destroy()
 	end)
 
+	rowIndex[macro.name] = subtitleLabel
 	row.Parent = MacroListContainer
 end
 
@@ -1089,10 +1770,16 @@ SaveAllButton.Visible = false
 -- ============================================================
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-
 	local macro = manager:GetMacroByBind(input.KeyCode)
 	if not macro then return end
+
+	-- A propósito NO se descarta por gameProcessed=true aquí.
+	-- Botones como A (jump), B, o R3 casi siempre llegan con
+	-- gameProcessed=true porque Roblox (o el juego) ya los usa para
+	-- algo por defecto (saltar, subir a la board, etc). Si el jugador
+	-- decidió asignar ESE botón a una macro, es intencional: queremos
+	-- que la macro se dispare de todas formas, en paralelo a lo que
+	-- sea que el botón ya hacía.
 
 	if currentlyRecordingMacro then return end
 	if #macro.sequence == 0 then return end
@@ -1281,10 +1968,15 @@ task.spawn(function()
 			if not humanoid then return end
 
 			suppressCapture = true
-			if target.Parent == character then
-				humanoid:UnequipTools()
-			else
-				humanoid:EquipTool(target)
+			local ok, err = pcall(function()
+				if target.Parent == character then
+					humanoid:UnequipTools()
+				else
+					humanoid:EquipTool(target)
+				end
+			end)
+			if not ok then
+				warn("[MacroClient] Error al equipar/desequipar: " .. tostring(err))
 			end
 			suppressCapture = false
 		end)
@@ -1304,10 +1996,15 @@ task.spawn(function()
 			if not tool or not tool:IsA("Tool") then return end
 
 			suppressCapture = true
-			if tool.Parent == character then
-				humanoid:UnequipTools()
-			else
-				humanoid:EquipTool(tool)
+			local ok, err = pcall(function()
+				if tool.Parent == character then
+					humanoid:UnequipTools()
+				else
+					humanoid:EquipTool(tool)
+				end
+			end)
+			if not ok then
+				warn("[MacroClient] Error al equipar/desequipar (slot): " .. tostring(err))
 			end
 			suppressCapture = false
 		end)
@@ -1330,7 +2027,20 @@ task.spawn(function()
 
 		if tool then
 			suppressCapture = true
-			tool:Activate()
+			-- pcall: si Activate() falla (herramienta ya no válida,
+			-- fue destruida, no soporta Activate, etc.) suppressCapture
+			-- ya NO se queda trabado en true para siempre. Antes, un
+			-- error aquí detenía la función a mitad de camino y el
+			-- "suppressCapture = false" de abajo nunca se ejecutaba,
+			-- dejando el sistema de captura bloqueado el resto de la
+			-- sesión — lo cual coincide con "se buguea con el último
+			-- ToolAttack y no puedo subir a la board".
+			local ok, err = pcall(function()
+				tool:Activate()
+			end)
+			if not ok then
+				warn("[MacroClient] Error al activar herramienta: " .. tostring(err))
+			end
 			suppressCapture = false
 		end
 	end)
