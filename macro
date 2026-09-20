@@ -1,0 +1,1410 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local GuiService = game:GetService("GuiService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ============================================================
+-- AUTO UI BOOTSTRAP (ADICIONAL)
+-- Crea la interfaz automáticamente si no existe.
+-- No reemplaza ni modifica la UI existente: solo proporciona
+-- los objetos que el sistema actual necesita.
+-- ============================================================
+
+local function createUIObject(className, name, parent, properties)
+	local object = Instance.new(className)
+	object.Name = name
+	for property, value in pairs(properties or {}) do
+		object[property] = value
+	end
+	object.Parent = parent
+	return object
+end
+
+local function ensureMacroUI()
+	local existing = playerGui:FindFirstChild("MacroUI")
+	if existing then
+		return existing
+	end
+
+	local gui = createUIObject("ScreenGui", "MacroUI", playerGui, {
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder = 50,
+	})
+
+	local toggle = createUIObject("TextButton", "ToggleButton", gui, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 18, 0.5, 0),
+		Size = UDim2.new(0, 52, 0, 52),
+		Text = "M",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 22,
+		BackgroundColor3 = Color3.fromRGB(175, 60, 255),
+		TextColor3 = Color3.new(1, 1, 1),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Selectable = true,
+	})
+
+	local main = createUIObject("Frame", "MainFrame", gui, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 620, 0, 470),
+		BackgroundColor3 = Color3.fromRGB(14, 13, 18),
+		BorderSizePixel = 0,
+		Visible = false,
+		ClipsDescendants = true,
+	})
+
+	createUIObject("TextLabel", "Title", main, {
+		Position = UDim2.new(0, 20, 0, 12),
+		Size = UDim2.new(1, -80, 0, 32),
+		BackgroundTransparency = 1,
+		Text = "MACRO SYSTEM",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Font = Enum.Font.GothamBlack,
+		TextSize = 21,
+		TextColor3 = Color3.fromRGB(240, 235, 250),
+	})
+
+	local list = createUIObject("ScrollingFrame", "MacroListContainer", main, {
+		Position = UDim2.new(0, 14, 0, 58),
+		Size = UDim2.new(1, -28, 1, -126),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 4,
+		CanvasSize = UDim2.new(0, 0, 0, 0),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+	})
+
+	local listLayout = createUIObject("UIListLayout", "Layout", list, {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	})
+
+	local newButton = createUIObject("TextButton", "NewMacroButton", main, {
+		Position = UDim2.new(0, 14, 1, -56),
+		Size = UDim2.new(0, 150, 0, 40),
+		Text = "+ NEW MACRO",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(175, 60, 255),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Selectable = true,
+	})
+
+	local saveButton = createUIObject("TextButton", "SaveAllButton", main, {
+		Position = UDim2.new(1, -164, 1, -56),
+		Size = UDim2.new(0, 150, 0, 40),
+		Text = "SAVE",
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(27, 24, 34),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Selectable = true,
+	})
+
+	local popup = createUIObject("Frame", "NewMacroPopup", main, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.new(0.5, 0, 0.5, 0),
+		Size = UDim2.new(0, 340, 0, 150),
+		BackgroundColor3 = Color3.fromRGB(20, 18, 26),
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = 20,
+	})
+
+	createUIObject("TextLabel", "PopupTitle", popup, {
+		Position = UDim2.new(0, 16, 0, 12),
+		Size = UDim2.new(1, -32, 0, 24),
+		BackgroundTransparency = 1,
+		Text = "CREATE MACRO",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 16,
+		TextColor3 = Color3.new(1, 1, 1),
+		ZIndex = 21,
+	})
+
+	createUIObject("TextBox", "NameInput", popup, {
+		Position = UDim2.new(0, 16, 0, 48),
+		Size = UDim2.new(1, -32, 0, 36),
+		PlaceholderText = "Macro name",
+		Text = "",
+		ClearTextOnFocus = false,
+		Font = Enum.Font.GothamBold,
+		TextSize = 14,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(27, 24, 34),
+		BorderSizePixel = 0,
+		ZIndex = 21,
+	})
+
+	createUIObject("TextButton", "ConfirmButton", popup, {
+		Position = UDim2.new(1, -126, 1, -42),
+		Size = UDim2.new(0, 110, 0, 32),
+		Text = "CREATE",
+		Font = Enum.Font.GothamBlack,
+		TextSize = 13,
+		TextColor3 = Color3.new(1, 1, 1),
+		BackgroundColor3 = Color3.fromRGB(175, 60, 255),
+		BorderSizePixel = 0,
+		AutoButtonColor = false,
+		Selectable = true,
+		ZIndex = 21,
+	})
+
+	createUIObject("Frame", "QuickAccessContainer", gui, {
+		Name = "QuickAccessContainer",
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		Size = UDim2.new(1, 0, 1, 0),
+		Position = UDim2.new(0, 0, 0, 0),
+		Visible = false,
+		ZIndex = 30,
+	})
+
+	return gui
+end
+
+-- Se crea solamente cuando falta; si ya existe, se conserva intacta.
+local _autoCreatedMacroUI = ensureMacroUI()
+
+
+local MacroUI = playerGui:WaitForChild("MacroUI")
+local ToggleButton = MacroUI:WaitForChild("ToggleButton")
+local MainFrame = MacroUI:WaitForChild("MainFrame")
+local MacroListContainer = MainFrame:WaitForChild("MacroListContainer")
+local NewMacroButton = MainFrame:WaitForChild("NewMacroButton")
+local NewMacroPopup = MainFrame:WaitForChild("NewMacroPopup")
+local NameInput = NewMacroPopup:WaitForChild("NameInput")
+local ConfirmButton = NewMacroPopup:WaitForChild("ConfirmButton")
+local QuickAccessContainer = MacroUI:WaitForChild("QuickAccessContainer")
+local SaveAllButton = MainFrame:WaitForChild("SaveAllButton")
+-- Nota: esta versión NO tiene guardado persistente. Las macros viven
+-- solo en memoria durante la sesión y se pierden al cerrar el juego.
+-- No requiere MacroSaveService ni la carpeta Remotes.
+
+-- ============================================================
+-- MÓDULOS INTERNOS
+-- Antes eran ModuleScripts separados en ReplicatedStorage.MacroSystem.
+-- Solo este script los usaba, así que ahora son locales aquí mismo.
+-- (Ojo: si en el futuro otro script necesita compartir ActionRegistry
+-- o Recorder, deben volver a ser ModuleScripts reales — ver nota abajo).
+-- ============================================================
+
+-- ----- MacroData -----
+local MacroData = {}
+function MacroData.new(name: string)
+	return {
+		name = name,
+		activationBind = nil,
+		sequence = {},
+	}
+end
+
+-- ----- Recorder -----
+local Recorder = {}
+Recorder.__index = Recorder
+
+function Recorder.new()
+	local self = setmetatable({}, Recorder)
+	self._recording = false
+	self._sequence = {}
+	self._lastTime = 0
+	return self
+end
+
+function Recorder:IsRecording(): boolean
+	return self._recording
+end
+
+function Recorder:Start()
+	if self._recording then
+		warn("[Recorder] Ya se está grabando.")
+		return
+	end
+	self._recording = true
+	self._sequence = {}
+	self._lastTime = os.clock()
+end
+
+function Recorder:Stop(): {any}
+	self._recording = false
+	return self._sequence
+end
+
+function Recorder:_Capture(actionName: string)
+	if not self._recording then return end
+	local now = os.clock()
+	local delay = now - self._lastTime
+	self._lastTime = now
+	table.insert(self._sequence, {
+		action = actionName,
+		delay = delay,
+	})
+end
+
+-- ----- ActionRegistry -----
+local ActionRegistry = {}
+local registeredActions: {[string]: (player: Player, fromInput: boolean?) -> ()} = {}
+local activeRecorder = nil
+
+function ActionRegistry.Register(name: string, callback: (player: Player, fromInput: boolean?) -> ())
+	if registeredActions[name] then
+		warn("[ActionRegistry] La acción '" .. name .. "' ya estaba registrada, se sobreescribe.")
+	end
+	registeredActions[name] = callback
+end
+
+function ActionRegistry.SetActiveRecorder(recorderInstance)
+	activeRecorder = recorderInstance
+end
+
+function ActionRegistry.Execute(name: string, plr: Player, fromInput: boolean?)
+	local action = registeredActions[name]
+	if not action then
+		warn("[ActionRegistry] Acción no encontrada: " .. tostring(name))
+		return
+	end
+	if fromInput and activeRecorder then
+		activeRecorder:_Capture(name)
+	end
+	action(plr, fromInput)
+end
+
+function ActionRegistry.IsRegistered(name: string): boolean
+	return registeredActions[name] ~= nil
+end
+
+-- ----- MacroManager -----
+local MacroManager = {}
+MacroManager.__index = MacroManager
+
+function MacroManager.new()
+	local self = setmetatable({}, MacroManager)
+	self._macros = {}
+	return self
+end
+
+function MacroManager:CreateMacro(name: string)
+	if self._macros[name] then
+		warn("[MacroManager] Ya existía una macro llamada '" .. name .. "', se sobreescribe.")
+	end
+	local macro = MacroData.new(name)
+	self._macros[name] = macro
+	return macro
+end
+
+function MacroManager:DeleteMacro(name: string)
+	if not self._macros[name] then
+		warn("[MacroManager] No existe una macro llamada '" .. name .. "'.")
+		return
+	end
+	self._macros[name] = nil
+end
+
+function MacroManager:GetMacro(name: string)
+	return self._macros[name]
+end
+
+function MacroManager:GetAllMacros()
+	local list = {}
+	for _, macro in pairs(self._macros) do
+		table.insert(list, macro)
+	end
+	return list
+end
+
+function MacroManager:SetActivationBind(name: string, keyCode: Enum.KeyCode)
+	local macro = self._macros[name]
+	if not macro then
+		warn("[MacroManager] No existe una macro llamada '" .. name .. "'.")
+		return
+	end
+	for otherName, otherMacro in pairs(self._macros) do
+		if otherName ~= name and otherMacro.activationBind == keyCode then
+			warn("[MacroManager] La tecla ya está asignada a la macro '" .. otherName .. "'. Se quita de ahí.")
+			otherMacro.activationBind = nil
+		end
+	end
+	macro.activationBind = keyCode
+end
+
+function MacroManager:GetMacroByBind(keyCode: Enum.KeyCode)
+	for _, macro in pairs(self._macros) do
+		if macro.activationBind == keyCode then
+			return macro
+		end
+	end
+	return nil
+end
+
+-- ----- MacroPlayer -----
+local MacroPlayer = {}
+MacroPlayer.__index = MacroPlayer
+
+function MacroPlayer.new()
+	local self = setmetatable({}, MacroPlayer)
+	self._playing = false
+	self._stopRequested = false
+	return self
+end
+
+function MacroPlayer:IsPlaying(): boolean
+	return self._playing
+end
+
+function MacroPlayer:Stop()
+	self._stopRequested = true
+end
+
+function MacroPlayer:Play(macro, plr: Player)
+	if self._playing then
+		warn("[MacroPlayer] Ya hay una macro reproduciéndose.")
+		return
+	end
+
+	self._playing = true
+	self._stopRequested = false
+
+	for _, step in ipairs(macro.sequence) do
+		if self._stopRequested then break end
+		if step.delay and step.delay > 0 then
+			task.wait(step.delay)
+		end
+		if self._stopRequested then break end
+		ActionRegistry.Execute(step.action, plr)
+	end
+
+	self._playing = false
+	self._stopRequested = false
+end
+
+-- ============================================================
+-- INSTANCIAS PRINCIPALES
+-- ============================================================
+
+local manager = MacroManager.new()
+local macroPlayerInstance = MacroPlayer.new()
+
+local sharedRecorder = Recorder.new()
+ActionRegistry.SetActiveRecorder(sharedRecorder)
+
+local currentlyRecordingMacro = nil
+local quickButtons = {}
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- ============================================================
+-- TEMA VISUAL: Tryhard Morado/Negro
+-- ============================================================
+local Theme = {
+	Background = Color3.fromRGB(14, 13, 18),
+	Panel = Color3.fromRGB(20, 18, 26),
+	RowAlt = Color3.fromRGB(27, 24, 34),
+	Accent = Color3.fromRGB(175, 60, 255),
+	AccentDark = Color3.fromRGB(110, 25, 180),
+	Text = Color3.fromRGB(240, 235, 250),
+	SubText = Color3.fromRGB(180, 170, 195),
+	Danger = Color3.fromRGB(230, 55, 95),
+	Font = Enum.Font.GothamBlack,
+	FontRegular = Enum.Font.GothamBold,
+}
+
+local function applyCorner(inst, radiusPx)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radiusPx or 8)
+	c.Parent = inst
+	return c
+end
+
+local function applyStroke(inst, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color or Theme.Accent
+	s.Thickness = thickness or 1.5
+	s.Transparency = transparency or 0
+	s.Parent = inst
+	return s
+end
+
+local function styleButton(btn, variant)
+	variant = variant or "secondary"
+
+	local baseColor = Theme.RowAlt
+	local strokeColor = Theme.Accent
+	if variant == "primary" then
+		baseColor = Theme.Accent
+		strokeColor = Color3.fromRGB(220, 180, 255)
+	elseif variant == "danger" then
+		baseColor = Color3.fromRGB(45, 22, 30)
+		strokeColor = Theme.Danger
+	end
+
+	btn.Font = Theme.FontRegular
+	btn.TextColor3 = Theme.Text
+	btn.TextScaled = false
+	btn.TextSize = 15
+	btn.BackgroundColor3 = baseColor
+	btn.AutoButtonColor = false
+	btn.BorderSizePixel = 0
+	applyCorner(btn, 6)
+	applyStroke(btn, strokeColor, 1.3)
+
+	local originalSize = btn.Size
+	local hoverColor = baseColor:Lerp(Color3.new(1, 1, 1), 0.12)
+
+	btn.MouseEnter:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = hoverColor}):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = baseColor}):Play()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = originalSize}):Play()
+	end)
+	btn.MouseButton1Down:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.07), {
+			Size = UDim2.new(originalSize.X.Scale, originalSize.X.Offset - 4, originalSize.Y.Scale, originalSize.Y.Offset - 4)
+		}):Play()
+	end)
+	btn.MouseButton1Up:Connect(function()
+		TweenService:Create(btn, TweenInfo.new(0.1), {Size = originalSize}):Play()
+	end)
+end
+
+local function styleFrame(frame, bgColor)
+	frame.BackgroundColor3 = bgColor or Theme.Panel
+	frame.BorderSizePixel = 0
+	applyCorner(frame, 10)
+end
+
+local function styleLabel(label, big)
+	label.Font = big and Theme.Font or Theme.FontRegular
+	label.TextColor3 = Theme.Text
+	label.TextSize = big and 18 or 14
+end
+
+local function styleTextBox(box)
+	box.Font = Theme.FontRegular
+	box.TextColor3 = Theme.Text
+	box.PlaceholderColor3 = Theme.SubText
+	box.BackgroundColor3 = Theme.RowAlt
+	box.BorderSizePixel = 0
+	box.TextSize = 14
+	applyCorner(box, 6)
+	applyStroke(box, Theme.Accent, 1)
+end
+
+-- ============================================================
+-- APLICAR TEMA A ELEMENTOS BASE
+-- ============================================================
+
+styleButton(ToggleButton, "primary")
+styleFrame(MainFrame, Theme.Background)
+applyStroke(MainFrame, Theme.Accent, 2)
+MainFrame.ClipsDescendants = true
+
+styleFrame(NewMacroPopup, Theme.Panel)
+styleTextBox(NameInput)
+styleButton(ConfirmButton, "primary")
+styleButton(NewMacroButton, "primary")
+styleButton(SaveAllButton, "secondary")
+
+-- ============================================================
+-- ANIMACIÓN DE APERTURA/CIERRE DEL PANEL
+-- ============================================================
+
+local panelTargetSize = MainFrame.Size
+local panelClosedSize = UDim2.new(panelTargetSize.X.Scale, panelTargetSize.X.Offset, 0, 0)
+MainFrame.Size = panelClosedSize
+MainFrame.Visible = false
+
+local panelOpen = false
+local function togglePanel()
+	panelOpen = not panelOpen
+	if panelOpen then
+		MainFrame.Visible = true
+		MainFrame.Size = panelClosedSize
+		TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = panelTargetSize}):Play()
+	else
+		local tween = TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size = panelClosedSize})
+		tween:Play()
+		tween.Completed:Connect(function()
+			if not panelOpen then
+				MainFrame.Visible = false
+			end
+		end)
+	end
+	if UserInputService.GamepadEnabled then
+		if panelOpen then
+			GuiService.SelectedObject = NewMacroButton
+		else
+			GuiService.SelectedObject = ToggleButton
+		end
+	end
+end
+
+ToggleButton.MouseButton1Click:Connect(togglePanel)
+
+-- ============================================================
+-- SELECCIÓN INICIAL PARA GAMEPAD
+-- Sin esto, un control no tiene forma de "detectar" ningún botón:
+-- Roblox solo permite navegar/activar con gamepad a partir de un
+-- GuiService.SelectedObject ya establecido. Lo fijamos al abrir el
+-- panel (y al conectar un control) para que la navegación funcione.
+-- ============================================================
+
+local function focusGamepadSelection()
+	if not UserInputService.GamepadEnabled then return end
+	if panelOpen and MainFrame.Visible then
+		GuiService.SelectedObject = NewMacroButton
+	else
+		GuiService.SelectedObject = ToggleButton
+	end
+end
+
+UserInputService.GamepadConnected:Connect(focusGamepadSelection)
+focusGamepadSelection()
+
+-- ============================================================
+-- BOTONES FLOTANTES DE EJECUCIÓN RÁPIDA (solo mobile)
+-- ============================================================
+
+QuickAccessContainer.Visible = isMobile
+
+local function refreshQuickButton(macro)
+	if quickButtons[macro.name] then
+		quickButtons[macro.name]:Destroy()
+		quickButtons[macro.name] = nil
+	end
+
+	if not macro.activationBind then return end
+
+	local quickButton = Instance.new("TextButton")
+	quickButton.Size = UDim2.new(0, 64, 0, 64)
+	quickButton.Text = macro.name
+	quickButton.TextWrapped = true
+	quickButton.Font = Theme.Font
+	quickButton.TextSize = 13
+	quickButton.TextColor3 = Theme.Text
+	quickButton.BackgroundColor3 = Theme.Panel
+	quickButton.AutoButtonColor = false
+	quickButton.BorderSizePixel = 0
+	quickButton.Parent = QuickAccessContainer
+
+	applyCorner(quickButton, 32)
+	applyStroke(quickButton, Theme.Accent, 2)
+
+	quickButton.MouseButton1Down:Connect(function()
+		TweenService:Create(quickButton, TweenInfo.new(0.08), {Size = UDim2.new(0, 56, 0, 56)}):Play()
+	end)
+	quickButton.MouseButton1Up:Connect(function()
+		TweenService:Create(quickButton, TweenInfo.new(0.1), {Size = UDim2.new(0, 64, 0, 64)}):Play()
+	end)
+
+	quickButton.MouseButton1Click:Connect(function()
+		if #macro.sequence == 0 then return end
+		if macroPlayerInstance:IsPlaying() then return end
+
+		local pulse = TweenService:Create(quickButton, TweenInfo.new(0.15), {BackgroundColor3 = Theme.Accent})
+		pulse:Play()
+		task.delay(0.2, function()
+			TweenService:Create(quickButton, TweenInfo.new(0.3), {BackgroundColor3 = Theme.Panel}):Play()
+		end)
+
+		task.spawn(function()
+			macroPlayerInstance:Play(macro, player)
+		end)
+	end)
+
+	quickButtons[macro.name] = quickButton
+end
+
+-- ============================================================
+-- FILAS DE MACROS (panel completo)
+-- ============================================================
+
+
+-- ============================================================
+-- MOBILE FLOATING MACROS + RESPONSIVE / CONTROLLER UI (ADICIONAL)
+-- No sustituye la lógica existente: añade una capa táctil.
+-- ============================================================
+
+local MobileFloatingLayer = MacroUI:FindFirstChild("MobileFloatingLayer")
+if not MobileFloatingLayer then
+	MobileFloatingLayer = Instance.new("Frame")
+	MobileFloatingLayer.Name = "MobileFloatingLayer"
+	MobileFloatingLayer.Size = UDim2.new(1, 0, 1, 0)
+	MobileFloatingLayer.Position = UDim2.new(0, 0, 0, 0)
+	MobileFloatingLayer.BackgroundTransparency = 1
+	MobileFloatingLayer.BorderSizePixel = 0
+	MobileFloatingLayer.Visible = isMobile
+	MobileFloatingLayer.ZIndex = 80
+	MobileFloatingLayer.Parent = MacroUI
+end
+
+local mobileMacroButtons = {}
+local mobileDragConnections = {}
+
+local function makeMobileButtonDraggable(button)
+	if mobileDragConnections[button] then return end
+
+	local dragging = false
+	local dragStart = nil
+	local startPosition = nil
+	local moved = false
+
+	local beginConnection = button.InputBegan:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+			return
+		end
+
+		dragging = true
+		moved = false
+		dragStart = input.Position
+		startPosition = button.Position
+	end)
+
+	local changedConnection = UserInputService.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseMovement then
+			return
+		end
+
+		local delta = input.Position - dragStart
+		if math.abs(delta.X) + math.abs(delta.Y) > 6 then
+			moved = true
+		end
+
+		local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 600)
+		local size = button.AbsoluteSize
+		local maxX = math.max(0, viewport.X - size.X - 8)
+		local maxY = math.max(0, viewport.Y - size.Y - 8)
+
+		local newX = math.clamp(startPosition.X.Offset + delta.X, 8, maxX)
+		local newY = math.clamp(startPosition.Y.Offset + delta.Y, 8, maxY)
+
+		button.Position = UDim2.new(0, newX, 0, newY)
+	end)
+
+	local endConnection = button.InputEnded:Connect(function(input)
+		if input.UserInputType ~= Enum.UserInputType.Touch
+			and input.UserInputType ~= Enum.UserInputType.MouseButton1 then
+			return
+		end
+		dragging = false
+	end)
+
+	mobileDragConnections[button] = {
+		beginConnection,
+		changedConnection,
+		endConnection,
+	}
+end
+
+local function createMobileMacroButton(macroName, index)
+	local old = mobileMacroButtons[macroName]
+	if old then
+		old:Destroy()
+		mobileMacroButtons[macroName] = nil
+	end
+
+	local button = Instance.new("TextButton")
+	button.Name = "MobileMacro_" .. macroName
+	button.Size = UDim2.new(0, 58, 0, 58)
+	button.Position = UDim2.new(0, 14 + ((index - 1) % 4) * 68, 1, -84 - (math.floor((index - 1) / 4) * 68))
+	button.AnchorPoint = Vector2.new(0, 1)
+	button.BackgroundColor3 = Theme.Panel
+	button.BorderSizePixel = 0
+	button.AutoButtonColor = false
+	button.Text = string.sub(macroName, 1, 8)
+	button.TextWrapped = true
+	button.TextSize = 11
+	button.Font = Theme.Font
+	button.TextColor3 = Theme.Text
+	button.ZIndex = 81
+	button.Selectable = true
+	button.Parent = MobileFloatingLayer
+
+	applyCorner(button, 29)
+	applyStroke(button, Theme.Accent, 2)
+
+	local scale = Instance.new("UIScale")
+	scale.Scale = 1
+	scale.Parent = button
+
+	button.MouseButton1Down:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.08), {Scale = 0.88}):Play()
+	end)
+
+	button.MouseButton1Up:Connect(function()
+		TweenService:Create(scale, TweenInfo.new(0.12, Enum.EasingStyle.Back), {Scale = 1}):Play()
+	end)
+
+	button.MouseButton1Click:Connect(function()
+		-- Si hubo arrastre, no ejecutar la macro.
+		if button:GetAttribute("WasDragged") then
+			button:SetAttribute("WasDragged", false)
+			return
+		end
+
+		local macro = manager:GetMacro(macroName)
+		if not macro or #macro.sequence == 0 or macroPlayerInstance:IsPlaying() then
+			return
+		end
+
+		local original = button.BackgroundColor3
+		TweenService:Create(button, TweenInfo.new(0.12), {
+			BackgroundColor3 = Theme.Accent
+		}):Play()
+
+		task.delay(0.16, function()
+			if button.Parent then
+				TweenService:Create(button, TweenInfo.new(0.25), {
+					BackgroundColor3 = original
+				}):Play()
+			end
+		end)
+
+		task.spawn(function()
+			macroPlayerInstance:Play(macro, player)
+		end)
+	end)
+
+	-- Marca el botón si el desplazamiento supera el umbral.
+	local dragStartPosition = nil
+	button.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragStartPosition = input.Position
+		end
+	end)
+
+	button.InputChanged:Connect(function(input)
+		if not dragStartPosition then return end
+		if input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStartPosition
+			if math.abs(delta.X) + math.abs(delta.Y) > 8 then
+				button:SetAttribute("WasDragged", true)
+			end
+		end
+	end)
+
+	makeMobileButtonDraggable(button)
+	mobileMacroButtons[macroName] = button
+end
+
+local function refreshMobileMacroButtons()
+	if not isMobile then
+		MobileFloatingLayer.Visible = false
+		return
+	end
+
+	MobileFloatingLayer.Visible = true
+
+	local names = {}
+	for _, row in ipairs(MacroListContainer:GetChildren()) do
+		if row:IsA("Frame") and row.Name ~= "" then
+			table.insert(names, row.Name)
+		end
+	end
+	table.sort(names)
+
+	local active = {}
+	for index, macroName in ipairs(names) do
+		active[macroName] = true
+		local existing = mobileMacroButtons[macroName]
+
+		if existing then
+			-- Conserva la posición si el usuario ya lo movió.
+			existing.Visible = true
+		else
+			createMobileMacroButton(macroName, index)
+		end
+	end
+
+	for macroName, button in pairs(mobileMacroButtons) do
+		if not active[macroName] then
+			button:Destroy()
+			mobileMacroButtons[macroName] = nil
+		end
+	end
+end
+
+MacroListContainer.ChildAdded:Connect(function(child)
+	if child:IsA("Frame") then
+		task.defer(refreshMobileMacroButtons)
+	end
+end)
+
+MacroListContainer.ChildRemoved:Connect(function(child)
+	task.defer(refreshMobileMacroButtons)
+end)
+
+-- PC / Gamepad / Mobile: escala la interfaz sin alterar la lógica.
+local responsiveScale = MacroUI:FindFirstChild("ResponsiveScale")
+if not responsiveScale then
+	responsiveScale = Instance.new("UIScale")
+	responsiveScale.Name = "ResponsiveScale"
+	responsiveScale.Parent = MainFrame
+end
+
+local function updateResponsiveUI()
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1280, 720)
+
+	if isMobile then
+		responsiveScale.Scale = math.clamp(math.min(viewport.X / 420, viewport.Y / 760), 0.72, 0.98)
+		MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
+		responsiveScale.Scale = math.clamp(math.min(viewport.X / 1000, viewport.Y / 700), 0.82, 1)
+	else
+		responsiveScale.Scale = math.clamp(math.min(viewport.X / 1100, viewport.Y / 760), 0.78, 1)
+	end
+end
+
+updateResponsiveUI()
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveUI)
+end
+
+-- La capa móvil se actualiza cuando ya existen filas de macros.
+task.defer(refreshMobileMacroButtons)
+
+local function createRow(macro)
+	local row = Instance.new("Frame")
+	row.Name = macro.name
+	row.Size = UDim2.new(1, 0, 0, 80)
+	styleFrame(row, Theme.RowAlt)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(0.35, 0, 0, 24)
+	nameLabel.Position = UDim2.new(0, 12, 0, 43)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = macro.name
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	styleLabel(nameLabel, true)
+	nameLabel.Parent = row
+
+	local recordButton = Instance.new("TextButton")
+	recordButton.Size = UDim2.new(0, 62, 0, 30)
+	recordButton.Position = UDim2.new(0.35, 10, 0, 40)
+	recordButton.Text = "● Record"
+	recordButton.Parent = row
+	styleButton(recordButton, "danger")
+
+	local playButton = Instance.new("TextButton")
+	playButton.Size = UDim2.new(0, 52, 0, 30)
+	playButton.Position = UDim2.new(0.6, 8, 0, 40)
+	playButton.Text = "▶ Play"
+	playButton.Parent = row
+	styleButton(playButton, "primary")
+
+	local deleteButton = Instance.new("TextButton")
+	deleteButton.Size = UDim2.new(0, 52, 0, 30)
+	deleteButton.Position = UDim2.new(0.8, 10, 0, 40)
+	deleteButton.Text = "Delete"
+	deleteButton.Parent = row
+	styleButton(deleteButton, "danger")
+
+	local bindButton = Instance.new("TextButton")
+	bindButton.Size = UDim2.new(0, 90, 0, 30)
+	bindButton.Position = UDim2.new(0.6, 10, 0, 5)
+	bindButton.Text = "Bind: " .. (macro.activationBind and macro.activationBind.Name or "None")
+	bindButton.Parent = row
+	styleButton(bindButton, "secondary")
+
+	local waitingForBind = false
+
+	bindButton.MouseButton1Click:Connect(function()
+		if waitingForBind then return end
+		waitingForBind = true
+		bindButton.Text = "Waiting..."
+
+		local connection
+		connection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if input.UserInputType ~= Enum.UserInputType.Keyboard
+				and input.UserInputType ~= Enum.UserInputType.Gamepad1 then
+				return
+			end
+
+			manager:SetActivationBind(macro.name, input.KeyCode)
+			bindButton.Text = "Bind: " .. input.KeyCode.Name
+			waitingForBind = false
+			connection:Disconnect()
+			refreshQuickButton(macro)
+		end)
+	end)
+
+	local editButton = Instance.new("TextButton")
+	editButton.Size = UDim2.new(0, 62, 0, 30)
+	editButton.Position = UDim2.new(0.35, 10, 0, 5)
+	editButton.Text = "Editar"
+	editButton.Parent = row
+	styleButton(editButton, "secondary")
+
+	local stepsContainer = Instance.new("Frame")
+	stepsContainer.Name = "StepsContainer"
+	stepsContainer.Size = UDim2.new(1, 0, 0, 0)
+	stepsContainer.Position = UDim2.new(0, 0, 0, 80)
+	stepsContainer.BackgroundColor3 = Theme.Background
+	stepsContainer.BorderSizePixel = 0
+	stepsContainer.ClipsDescendants = true
+	stepsContainer.Visible = false
+	stepsContainer.Parent = row
+
+	local stepsLayout = Instance.new("UIListLayout")
+	stepsLayout.Parent = stepsContainer
+
+	local function refreshStepsUI()
+		for _, child in ipairs(stepsContainer:GetChildren()) do
+			if child:IsA("Frame") then
+				child:Destroy()
+			end
+		end
+
+		for i, step in ipairs(macro.sequence) do
+			local stepRow = Instance.new("Frame")
+			stepRow.Size = UDim2.new(1, 0, 0, 32)
+			stepRow.BackgroundTransparency = 1
+
+			local stepLabel = Instance.new("TextLabel")
+			stepLabel.Size = UDim2.new(0.55, 0, 1, 0)
+			stepLabel.Position = UDim2.new(0, 12, 0, 0)
+			stepLabel.BackgroundTransparency = 1
+			stepLabel.Text = i .. ". " .. (step.action:sub(1, 10) == "EquipTool:" and "Equip: " .. step.action:sub(11) or step.action)
+			stepLabel.TextXAlignment = Enum.TextXAlignment.Left
+			styleLabel(stepLabel, false)
+			stepLabel.TextColor3 = Theme.SubText
+			stepLabel.Parent = stepRow
+
+			local delayBox = Instance.new("TextBox")
+			delayBox.Size = UDim2.new(0, 60, 0, 26)
+			delayBox.Position = UDim2.new(0.6, 0, 0, 3)
+			delayBox.Text = string.format("%.2f", step.delay)
+			delayBox.Parent = stepRow
+			styleTextBox(delayBox)
+
+			delayBox.FocusLost:Connect(function()
+				local newValue = tonumber(delayBox.Text)
+				if newValue and newValue >= 0 then
+					step.delay = newValue
+					delayBox.Text = string.format("%.2f", newValue)
+				else
+					delayBox.Text = string.format("%.2f", step.delay)
+				end
+			end)
+
+			stepRow.Parent = stepsContainer
+		end
+
+		stepsContainer.Size = UDim2.new(1, 0, 0, #macro.sequence * 32)
+	end
+
+	editButton.MouseButton1Click:Connect(function()
+		stepsContainer.Visible = not stepsContainer.Visible
+		local targetHeight = stepsContainer.Visible and (80 + (#macro.sequence * 32)) or 80
+		if stepsContainer.Visible then
+			refreshStepsUI()
+		end
+		TweenService:Create(row, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = UDim2.new(1, 0, 0, targetHeight)}):Play()
+	end)
+
+	recordButton.MouseButton1Click:Connect(function()
+		if currentlyRecordingMacro == macro.name then
+			local result = sharedRecorder:Stop()
+			macro.sequence = result
+			currentlyRecordingMacro = nil
+			recordButton.Text = "● Record"
+		elseif currentlyRecordingMacro == nil then
+			sharedRecorder:Start()
+			currentlyRecordingMacro = macro.name
+			recordButton.Text = "■ Stop"
+		end
+	end)
+
+	playButton.MouseButton1Click:Connect(function()
+		if #macro.sequence == 0 then return end
+		if macroPlayerInstance:IsPlaying() then return end
+		task.spawn(function()
+			macroPlayerInstance:Play(macro, player)
+		end)
+	end)
+
+	deleteButton.MouseButton1Click:Connect(function()
+		manager:DeleteMacro(macro.name)
+		if quickButtons[macro.name] then
+			quickButtons[macro.name]:Destroy()
+			quickButtons[macro.name] = nil
+		end
+		row:Destroy()
+	end)
+
+	row.Parent = MacroListContainer
+end
+
+-- ============================================================
+-- CREACIÓN DE MACROS NUEVAS
+-- ============================================================
+
+NewMacroButton.MouseButton1Click:Connect(function()
+	NewMacroPopup.Visible = not NewMacroPopup.Visible
+end)
+
+ConfirmButton.MouseButton1Click:Connect(function()
+	local name = NameInput.Text
+	if name == "" then return end
+	if manager:GetMacro(name) then return end
+
+	local macro = manager:CreateMacro(name)
+	createRow(macro)
+	refreshQuickButton(macro)
+
+	NameInput.Text = ""
+	NewMacroPopup.Visible = false
+end)
+
+-- ============================================================
+-- SIN GUARDADO PERSISTENTE
+-- Esta versión no carga ni guarda macros entre sesiones. Todas las
+-- macros creadas viven solo en memoria mientras el jugador está
+-- conectado y se pierden al cerrar el juego. SaveAllButton se oculta
+-- porque ya no tiene ninguna función.
+-- ============================================================
+
+SaveAllButton.Visible = false
+
+-- ============================================================
+-- ACTIVATION BIND GLOBAL
+-- ============================================================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+
+	local macro = manager:GetMacroByBind(input.KeyCode)
+	if not macro then return end
+
+	if currentlyRecordingMacro then return end
+	if #macro.sequence == 0 then return end
+	if macroPlayerInstance:IsPlaying() then return end
+
+	task.spawn(function()
+		macroPlayerInstance:Play(macro, player)
+	end)
+end)
+
+-- ============================================================
+-- TOOL BRIDGE
+-- Conecta el sistema de macros con las acciones reales del juego:
+-- Azure (ContextActionService+Remote), equipar por número de hotbar,
+-- y ataque genérico universal (click/touch/gatillo).
+--
+-- Corre en su propio hilo (task.spawn) para no bloquear la UI de
+-- arriba mientras espera a que el personaje cargue — antes esto
+-- corría en un LocalScript aparte (MacroToolBridge), en paralelo.
+-- ============================================================
+
+task.spawn(function()
+	if not player.Character then
+		player.CharacterAdded:Wait()
+	end
+
+	local suppressCapture = false
+	local currentEquippedTool = nil
+	local activatedConnection = nil
+
+	-- ===== AZURE (caso especial: ContextActionService + Remote) =====
+
+	local azureEquipped = false
+	local azureRemote = nil
+
+	local function hookAzure(tool)
+		if tool.Name ~= "Azure" then return end
+
+		local ToolRemote = tool:WaitForChild("Remote", 5)
+		if not ToolRemote then return end
+
+		azureRemote = ToolRemote
+
+		ActionRegistry.Register("Azure_Primary", function(plr, fromInput)
+			if fromInput then return end
+			ToolRemote:FireServer(Enum.KeyCode.E)
+		end)
+		ActionRegistry.Register("Azure_Secondary", function(plr, fromInput)
+			if fromInput then return end
+			ToolRemote:FireServer(Enum.KeyCode.X)
+		end)
+
+		tool.Equipped:Connect(function()
+			azureEquipped = true
+		end)
+		tool.Unequipped:Connect(function()
+			azureEquipped = false
+		end)
+
+		if tool.Parent and tool.Parent:IsA("Model") and tool.Parent == player.Character then
+			azureEquipped = true
+		end
+	end
+
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if not azureEquipped then return end
+
+		if input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.ButtonX then
+			ActionRegistry.Execute("Azure_Primary", player, true)
+		elseif input.KeyCode == Enum.KeyCode.X or input.KeyCode == Enum.KeyCode.ButtonY then
+			ActionRegistry.Execute("Azure_Secondary", player, true)
+		end
+	end)
+
+	-- ===== EQUIPAR ARMAS (universal: números en PC, toque en mobile, gamepad) =====
+
+	local function assignHotbarSlots()
+		-- No usamos el índice de GetChildren() porque Backpack puede tener
+		-- objetos que no son Tools. Solo contamos Tools.
+		local currentBackpack = player.Backpack
+		local used = {}
+		for _, tool in ipairs(currentBackpack:GetChildren()) do
+			if tool:IsA("Tool") then
+				local slot = tool:GetAttribute("HotbarSlot")
+				if typeof(slot) == "number" and slot >= 0 and slot <= 9 then
+					used[slot] = true
+				end
+			end
+		end
+
+		local nextSlot = 1
+		for _, tool in ipairs(currentBackpack:GetChildren()) do
+			if tool:IsA("Tool") and tool:GetAttribute("HotbarSlot") == nil then
+				while nextSlot <= 9 and used[nextSlot] do
+					nextSlot += 1
+				end
+				if nextSlot <= 9 then
+					tool:SetAttribute("HotbarSlot", nextSlot)
+					used[nextSlot] = true
+					nextSlot += 1
+				end
+			end
+		end
+	end
+
+	task.wait(2)
+	assignHotbarSlots()
+
+	local function getToolInSlot(slotNumber: number)
+		local currentBackpack = player.Backpack
+		for _, tool in ipairs(currentBackpack:GetChildren()) do
+			if tool:IsA("Tool") and tool:GetAttribute("HotbarSlot") == slotNumber then
+				return tool
+			end
+		end
+		local character = player.Character
+		if character then
+			for _, tool in ipairs(character:GetChildren()) do
+				if tool:IsA("Tool") and tool:GetAttribute("HotbarSlot") == slotNumber then
+					return tool
+				end
+			end
+		end
+		return nil
+	end
+
+	-- Identificación por nombre real de Tool.
+	-- Esto NO depende del orden del Backpack ni de un atributo inventado
+	-- por este script, por lo que funciona también con hotbars custom.
+	local function makeToolActionName(toolName: string): string
+		return "EquipTool:" .. toolName
+	end
+
+	local function findToolByName(toolName: string)
+		local character = player.Character
+		if character then
+			local equipped = character:FindFirstChild(toolName)
+			if equipped and equipped:IsA("Tool") then
+				return equipped
+			end
+		end
+
+		local currentBackpack = player.Backpack
+		local tool = currentBackpack:FindFirstChild(toolName)
+		if tool and tool:IsA("Tool") then
+			return tool
+		end
+
+		-- Fallback por si hay nombres duplicados o la Tool está en otro
+		-- contenedor del personaje.
+		if character then
+			for _, child in ipairs(character:GetChildren()) do
+				if child:IsA("Tool") and child.Name == toolName then
+					return child
+				end
+			end
+		end
+		for _, child in ipairs(currentBackpack:GetChildren()) do
+			if child:IsA("Tool") and child.Name == toolName then
+				return child
+			end
+		end
+
+		return nil
+	end
+
+	local registeredToolActions = {}
+
+	local function registerToolAction(tool: Tool)
+		if not tool or not tool:IsA("Tool") then return end
+
+		local actionName = makeToolActionName(tool.Name)
+		if registeredToolActions[actionName] then return end
+		registeredToolActions[actionName] = true
+
+		ActionRegistry.Register(actionName, function(plr, fromInput)
+			-- Cuando viene de la captura solo registramos la acción;
+			-- no intentamos equiparla otra vez.
+			if fromInput then return end
+
+			local target = findToolByName(tool.Name)
+			if not target then return end
+
+			local character = plr.Character
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+
+			suppressCapture = true
+			if target.Parent == character then
+				humanoid:UnequipTools()
+			else
+				humanoid:EquipTool(target)
+			end
+			suppressCapture = false
+		end)
+	end
+
+	for slotNumber = 0, 9 do
+		local actionName = "EquipSlot" .. slotNumber
+		ActionRegistry.Register(actionName, function(plr, fromInput)
+			if fromInput then return end
+
+			local character = plr.Character
+			if not character then return end
+			local humanoid = character:FindFirstChildOfClass("Humanoid")
+			if not humanoid then return end
+
+			local tool = getToolInSlot(slotNumber)
+			if not tool or not tool:IsA("Tool") then return end
+
+			suppressCapture = true
+			if tool.Parent == character then
+				humanoid:UnequipTools()
+			else
+				humanoid:EquipTool(tool)
+			end
+			suppressCapture = false
+		end)
+	end
+
+	-- ===== ATAQUE GENÉRICO (universal: click en PC, toque en mobile, gatillo en gamepad) =====
+
+	ActionRegistry.Register("ToolAttack", function(plr, fromInput)
+		if fromInput then return end
+
+		-- Se busca la herramienta equipada en vivo (en vez de usar solo
+		-- currentEquippedTool, que se actualiza vía el evento Equipped y
+		-- puede llegar un instante tarde). Esto evita que, al reproducir
+		-- una macro que equipa y clickea muy rápido seguido, el click
+		-- se pierda porque currentEquippedTool todavía no se había
+		-- actualizado en ese momento.
+		local character = plr.Character
+		local liveTool = character and character:FindFirstChildOfClass("Tool")
+		local tool = liveTool or currentEquippedTool
+
+		if tool then
+			suppressCapture = true
+			tool:Activate()
+			suppressCapture = false
+		end
+	end)
+
+	-- ===== SEGUIMIENTO UNIVERSAL DE CUALQUIER HERRAMIENTA =====
+
+	local function onToolEquipped(tool)
+		currentEquippedTool = tool
+		registerToolAction(tool)
+
+		-- La acción grabada identifica la Tool por su nombre real.
+		-- Ya no depende de que el juego use el mismo orden de slots
+		-- que Backpack:GetChildren().
+		if not suppressCapture then
+			ActionRegistry.Execute(makeToolActionName(tool.Name), player, true)
+		end
+
+		if activatedConnection then
+			activatedConnection:Disconnect()
+		end
+		activatedConnection = tool.Activated:Connect(function()
+			if not suppressCapture then
+				ActionRegistry.Execute("ToolAttack", player, true)
+			end
+		end)
+	end
+
+	local function onToolUnequipped(tool)
+		if currentEquippedTool == tool then
+			currentEquippedTool = nil
+		end
+		if activatedConnection then
+			activatedConnection:Disconnect()
+			activatedConnection = nil
+		end
+
+		-- No grabamos una segunda acción al desequipar.
+		-- La acción importante es la Tool que el jugador acaba de equipar.
+	end
+
+	local trackedTools = {}
+
+	local function trackTool(tool)
+		if not tool:IsA("Tool") then return end
+		if trackedTools[tool] then return end
+		trackedTools[tool] = true
+
+		registerToolAction(tool)
+		hookAzure(tool)
+		tool.Equipped:Connect(function()
+			onToolEquipped(tool)
+		end)
+		tool.Unequipped:Connect(function()
+			onToolUnequipped(tool)
+		end)
+	end
+
+	local function watchContainer(container)
+		for _, tool in ipairs(container:GetChildren()) do
+			trackTool(tool)
+		end
+		container.ChildAdded:Connect(function(child)
+			trackTool(child)
+		end)
+	end
+
+	watchContainer(player:WaitForChild("Backpack"))
+	if player.Character then
+		watchContainer(player.Character)
+	end
+	player.CharacterAdded:Connect(function(char)
+		watchContainer(char)
+		watchContainer(player:WaitForChild("Backpack"))
+		task.wait(2)
+		assignHotbarSlots()
+	end)
+end)
